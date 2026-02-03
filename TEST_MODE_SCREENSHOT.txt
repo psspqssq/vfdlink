@@ -1,0 +1,196 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                   🧪 TEST MODE - WEB INTERFACE                                ║
+║                        (Visual Layout Guide)                                  ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ 🧪 Test Mode - Direct WEG Commands                                           │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  ⚠️ Warning: These commands bypass the gateway and send directly to WEG!     │
+│                                                                               │
+│  ┌─ Quick Commands: ────────────────────────────────────────────────────┐   │
+│  │                                                                       │   │
+│  │  [ ▶️ Start Motor ]  [ ⏹️ Stop Motor ]                                │   │
+│  │                                                                       │   │
+│  │  [ Set 15 Hz ]  [ Set 30 Hz ]  [ Set 45 Hz ]                         │   │
+│  │                                                                       │   │
+│  │  [ Direction: Forward ]  [ Direction: Reverse ]                      │   │
+│  │                                                                       │   │
+│  │  [ 📖 Read Actual Speed ]  [ 📖 Read Control ]  [ 📖 Read Speed Ref ]│   │
+│  │                                                                       │   │
+│  └───────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  ┌─ Custom Command: ─────────────────────────────────────────────────────┐   │
+│  │                                                                        │   │
+│  │  Register (P-number): [ 683 ]    Value: [ 4096 ]   [ 📤 Send Custom ]│   │
+│  │                                                                        │   │
+│  │  [ 📥 Read Custom Register ]                                          │   │
+│  │                                                                        │   │
+│  └────────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  ┌─ 🧮 Frequency Calculator: ────────────────────────────────────────────┐   │
+│  │                                                                        │   │
+│  │  Desired Frequency (Hz): [ 30.0 ]    WEG Value: [ 4096 ]   [ Send ]  │   │
+│  │                                                                        │   │
+│  └────────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  ┌─ Last Response: ──────────────────────────────────────────────────────┐   │
+│  │                                                                        │   │
+│  │  [10:30:15 AM] Successfully wrote 4096 to P0683                       │   │
+│  │                                                                        │   │
+│  └────────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                            BUTTON FUNCTIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+MOTOR CONTROL:
+┌────────────────────┬──────────────┬────────────────────────────────────────┐
+│ Button             │ Register     │ Action                                 │
+├────────────────────┼──────────────┼────────────────────────────────────────┤
+│ ▶️ Start Motor     │ P0682 = 1    │ Sets run bit, motor starts            │
+│ ⏹️ Stop Motor      │ P0682 = 0    │ Clears run bit, motor stops           │
+└────────────────────┴──────────────┴────────────────────────────────────────┘
+
+FREQUENCY PRESETS:
+┌────────────────────┬──────────────┬────────────────────────────────────────┐
+│ Button             │ Register     │ Action                                 │
+├────────────────────┼──────────────┼────────────────────────────────────────┤
+│ Set 15 Hz          │ P0683 = 2048 │ 25% speed (15 Hz if max 60 Hz)        │
+│ Set 30 Hz          │ P0683 = 4096 │ 50% speed (30 Hz if max 60 Hz)        │
+│ Set 45 Hz          │ P0683 = 6144 │ 75% speed (45 Hz if max 60 Hz)        │
+└────────────────────┴──────────────┴────────────────────────────────────────┘
+
+DIRECTION:
+┌────────────────────┬──────────────┬────────────────────────────────────────┐
+│ Button             │ Register     │ Action                                 │
+├────────────────────┼──────────────┼────────────────────────────────────────┤
+│ Direction: Forward │ P0685 = 0    │ Motor runs forward                     │
+│ Direction: Reverse │ P0685 = 1    │ Motor runs reverse                     │
+└────────────────────┴──────────────┴────────────────────────────────────────┘
+
+READ COMMANDS:
+┌────────────────────┬──────────────┬────────────────────────────────────────┐
+│ Button             │ Register     │ Returns                                │
+├────────────────────┼──────────────┼────────────────────────────────────────┤
+│ Read Actual Speed  │ P0681        │ Current motor speed (0-8192)           │
+│ Read Control Word  │ P0682        │ Current control status (run/stop)      │
+│ Read Speed Ref     │ P0683        │ Current frequency setpoint (0-8192)    │
+└────────────────────┴──────────────┴────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                        FREQUENCY CALCULATOR
+═══════════════════════════════════════════════════════════════════════════════
+
+HOW IT WORKS:
+
+   Enter Hz ─────────> Calculator ─────────> WEG Value ─────────> Send to WEG
+                           │                                           │
+   Example: 30.0 Hz        │                  4096                    │
+                           │                                           │
+                    Formula Used:                                     │
+              (30.0 × 100 / 6000) × 8192 = 4096            Writes to P0683
+
+REAL-TIME CALCULATION:
+  - Type any Hz value (0-60)
+  - WEG Value updates instantly
+  - Click Send to apply
+  - No manual math needed!
+
+═══════════════════════════════════════════════════════════════════════════════
+                            RESPONSE EXAMPLES
+═══════════════════════════════════════════════════════════════════════════════
+
+SUCCESS (Green):
+┌────────────────────────────────────────────────────────────────────────────┐
+│ [10:30:15 AM] Successfully wrote 4096 to P0683                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+READ SUCCESS (Green):
+┌────────────────────────────────────────────────────────────────────────────┐
+│ [10:30:20 AM] P0681 = 4096                                                │
+└────────────────────────────────────────────────────────────────────────────┘
+
+ERROR (Red):
+┌────────────────────────────────────────────────────────────────────────────┐
+│ [10:30:25 AM] Modbus error: Gateway not connected                         │
+└────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                        TYPICAL WORKFLOW EXAMPLE
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Set Frequency
+┌─────────────────────────────────────────────────────────────────────┐
+│ Enter 25.0 in "Desired Frequency (Hz)"                             │
+│ → WEG Value shows: 3413                                            │
+│ Click [Send]                                                        │
+│ → Response: "Successfully wrote 3413 to P0683"                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+STEP 2: Start Motor
+┌─────────────────────────────────────────────────────────────────────┐
+│ Click [▶️ Start Motor]                                              │
+│ → Response: "Successfully wrote 1 to P0682"                        │
+│ → Motor starts running at 25 Hz!                                   │
+└─────────────────────────────────────────────────────────────────────┘
+
+STEP 3: Verify Speed
+┌─────────────────────────────────────────────────────────────────────┐
+│ Click [📖 Read Actual Speed]                                        │
+│ → Response: "P0681 = 3413"                                         │
+│ → Confirms motor running at setpoint                               │
+└─────────────────────────────────────────────────────────────────────┘
+
+STEP 4: Change Speed
+┌─────────────────────────────────────────────────────────────────────┐
+│ Click [Set 45 Hz]                                                   │
+│ → Response: "Successfully wrote 6144 to P0683"                     │
+│ → Motor accelerates to 45 Hz                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+STEP 5: Stop Motor
+┌─────────────────────────────────────────────────────────────────────┐
+│ Click [⏹️ Stop Motor]                                               │
+│ → Response: "Successfully wrote 0 to P0682"                        │
+│ → Motor decelerates and stops                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                            KEY FEATURES
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ ONE-CLICK PRESETS      - Common commands ready to go
+✅ CUSTOM COMMANDS        - Send any register/value combination
+✅ READ CAPABILITY        - Check current values from WEG
+✅ FREQUENCY CALCULATOR   - Automatic Hz to WEG value conversion
+✅ REAL-TIME FEEDBACK     - See response immediately
+✅ ERROR MESSAGES         - Clear indication of problems
+✅ LOGS INTEGRATED        - All commands appear in main log
+✅ NO GATEWAY NEEDED      - Direct communication for testing
+
+═══════════════════════════════════════════════════════════════════════════════
+                            SAFETY REMINDER
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️  BEFORE TESTING:
+    □ Motor uncoupled from load
+    □ Emergency stop accessible
+    □ Clear area around motor
+    □ WEG parameters configured safely
+
+⚠️  NEVER:
+    ✗ Test under load (first time)
+    ✗ Exceed motor ratings
+    ✗ Leave unattended while running
+
+═══════════════════════════════════════════════════════════════════════════════
+
+For detailed instructions, see TEST_MODE_GUIDE.md
+For register reference, see QUICK_REFERENCE.md
+For Modbus protocol details, see MODBUS_PLC_GUIDE.md
+
+
