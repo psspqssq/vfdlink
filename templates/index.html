@@ -1,622 +1,2164 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEG Drive Gateway - Test Mode</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VFD Link - Yaskawa to WEG Gateway</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        min-height: 100vh;
+        padding: 10px;
+      }
+
+      .container {
+        max-width: 100%;
+        min-height: calc(100vh - 20px);
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        background: rgba(255, 255, 255, 0.95);
+        padding: 10px 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      h1 {
+        color: #1a1a2e;
+        font-size: 18px;
+      }
+
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+      }
+
+      .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #ef4444;
+        animation: pulse 2s infinite;
+      }
+
+      .status-dot.running {
+        background: #10b981;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
         }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
-            overflow: hidden;
-            padding: 10px;
+        50% {
+          opacity: 0.5;
         }
+      }
 
-        .container {
-            max-width: 100%;
-            height: calc(100vh - 20px);
-            display: flex;
-            flex-direction: column;
-        }
+      /* Mode Tabs */
+      .mode-tabs {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 10px;
+      }
 
-        header {
-            background: white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+      .mode-tab {
+        flex: 1;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 8px 8px 0 0;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.7);
+      }
 
-        h1 {
-            color: #333;
-            font-size: 18px;
-        }
+      .mode-tab:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
 
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 14px;
-        }
+      .mode-tab.active {
+        background: rgba(255, 255, 255, 0.95);
+        color: #1a1a2e;
+      }
 
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #ef4444;
-            animation: pulse 2s infinite;
-        }
+      .mode-tab.redirect {
+        border-top: 3px solid #10b981;
+      }
+      .mode-tab.listen {
+        border-top: 3px solid #f59e0b;
+      }
+      .mode-tab.command {
+        border-top: 3px solid #8b5cf6;
+      }
 
-        .status-dot.running {
-            background: #10b981;
-        }
+      /* Mode Content */
+      .mode-content {
+        display: none;
+        flex: 1;
+      }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
+      .mode-content.active {
+        display: flex;
+        gap: 10px;
+      }
 
-        .main-grid {
-            display: grid;
-            grid-template-columns: 280px 1fr 400px;
-            gap: 10px;
-            flex: 1;
-            overflow: hidden;
-        }
+      .main-grid {
+        display: grid;
+        grid-template-columns: 280px 1fr 400px;
+        gap: 10px;
+        flex: 1;
+      }
 
-        .card {
-            background: white;
-            padding: 12px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            overflow-y: auto;
-        }
+      .main-grid-2col {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 10px;
+        flex: 1;
+      }
 
-        .card h2 {
-            color: #333;
-            margin-bottom: 12px;
-            font-size: 14px;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 6px;
-        }
+      .main-grid-listen {
+        display: grid;
+        grid-template-columns: 280px 1fr 450px;
+        gap: 10px;
+        flex: 1;
+      }
 
-        .form-group {
-            margin-bottom: 8px;
-        }
+      .card {
+        background: rgba(255, 255, 255, 0.95);
+        padding: 12px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+        overflow-y: auto;
+      }
 
-        label {
-            display: block;
-            margin-bottom: 3px;
-            color: #555;
-            font-weight: 500;
-            font-size: 11px;
-        }
+      .card h2 {
+        color: #1a1a2e;
+        margin-bottom: 12px;
+        font-size: 14px;
+        border-bottom: 2px solid #667eea;
+        padding-bottom: 6px;
+      }
 
-        input, select {
-            width: 100%;
-            padding: 6px;
-            border: 1px solid #e5e7eb;
-            border-radius: 4px;
-            font-size: 12px;
-        }
+      .card h2.green {
+        border-bottom-color: #10b981;
+      }
+      .card h2.orange {
+        border-bottom-color: #f59e0b;
+      }
+      .card h2.purple {
+        border-bottom-color: #8b5cf6;
+      }
 
-        input:focus, select:focus {
-            outline: none;
-            border-color: #667eea;
-        }
+      .form-group {
+        margin-bottom: 8px;
+      }
 
-        .button-group {
-            display: flex;
-            gap: 6px;
-            margin-bottom: 8px;
-        }
+      label {
+        display: block;
+        margin-bottom: 3px;
+        color: #555;
+        font-weight: 500;
+        font-size: 11px;
+      }
 
-        button {
-            flex: 1;
-            padding: 6px;
-            border: none;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
+      input,
+      select {
+        width: 100%;
+        padding: 6px;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        font-size: 12px;
+      }
 
-        .btn-primary { background: #667eea; color: white; }
-        .btn-primary:hover { background: #5568d3; }
-        .btn-success { background: #10b981; color: white; }
-        .btn-success:hover { background: #059669; }
-        .btn-danger { background: #ef4444; color: white; }
-        .btn-danger:hover { background: #dc2626; }
-        .btn-secondary { background: #6b7280; color: white; }
-        .btn-secondary:hover { background: #4b5563; }
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: #667eea;
+      }
 
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
+      .button-group {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
 
-        .log-container {
-            background: #1e293b;
-            border-radius: 4px;
-            padding: 10px;
-            height: 100%;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 10px;
-        }
+      button {
+        flex: 1;
+        padding: 6px;
+        border: none;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
 
-        .log-entry {
-            padding: 3px;
-            margin-bottom: 2px;
-            border-left: 2px solid transparent;
-        }
+      .btn-primary {
+        background: #667eea;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #5568d3;
+      }
+      .btn-success {
+        background: #10b981;
+        color: white;
+      }
+      .btn-success:hover {
+        background: #059669;
+      }
+      .btn-danger {
+        background: #ef4444;
+        color: white;
+      }
+      .btn-danger:hover {
+        background: #dc2626;
+      }
+      .btn-secondary {
+        background: #6b7280;
+        color: white;
+      }
+      .btn-secondary:hover {
+        background: #4b5563;
+      }
+      .btn-warning {
+        background: #f59e0b;
+        color: white;
+      }
+      .btn-warning:hover {
+        background: #d97706;
+      }
+      .btn-purple {
+        background: #8b5cf6;
+        color: white;
+      }
+      .btn-purple:hover {
+        background: #7c3aed;
+      }
 
-        .log-timestamp {
-            color: #94a3b8;
-            margin-right: 8px;
-            font-size: 9px;
-        }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
 
-        .log-type {
-            font-weight: bold;
-            margin-right: 8px;
-            padding: 1px 4px;
-            border-radius: 2px;
-            font-size: 9px;
-        }
+      .log-container {
+        background: #1e293b;
+        border-radius: 4px;
+        padding: 10px;
+        height: calc(100% - 60px);
+        overflow-y: auto;
+        font-family: "Courier New", monospace;
+        font-size: 10px;
+      }
 
-        .log-message {
-            color: #e2e8f0;
-            font-size: 10px;
-        }
+      .log-entry {
+        padding: 3px;
+        margin-bottom: 2px;
+        border-left: 2px solid transparent;
+      }
 
-        .log-entry.INFO { border-left-color: #3b82f6; }
-        .log-entry.INFO .log-type { background: #3b82f6; color: white; }
-        .log-entry.SUCCESS { border-left-color: #10b981; }
-        .log-entry.SUCCESS .log-type { background: #10b981; color: white; }
-        .log-entry.ERROR { border-left-color: #ef4444; }
-        .log-entry.ERROR .log-type { background: #ef4444; color: white; }
-        .log-entry.WARNING { border-left-color: #f59e0b; }
-        .log-entry.WARNING .log-type { background: #f59e0b; color: white; }
-        .log-entry.COMMAND { border-left-color: #8b5cf6; }
-        .log-entry.COMMAND .log-type { background: #8b5cf6; color: white; }
+      .log-timestamp {
+        color: #94a3b8;
+        margin-right: 8px;
+        font-size: 9px;
+      }
 
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-bottom: 10px;
-        }
+      .log-type {
+        font-weight: bold;
+        margin-right: 8px;
+        padding: 1px 4px;
+        border-radius: 2px;
+        font-size: 9px;
+      }
 
-        .stat-card {
-            background: #f3f4f6;
-            padding: 8px;
-            border-radius: 6px;
-            text-align: center;
-        }
+      .log-message {
+        color: #e2e8f0;
+        font-size: 10px;
+        white-space: pre-wrap;
+      }
 
-        .stat-value {
-            font-size: 20px;
-            font-weight: bold;
-            color: #667eea;
-        }
+      .log-entry.INFO {
+        border-left-color: #3b82f6;
+      }
+      .log-entry.INFO .log-type {
+        background: #3b82f6;
+        color: white;
+      }
+      .log-entry.SUCCESS {
+        border-left-color: #10b981;
+      }
+      .log-entry.SUCCESS .log-type {
+        background: #10b981;
+        color: white;
+      }
+      .log-entry.ERROR {
+        border-left-color: #ef4444;
+      }
+      .log-entry.ERROR .log-type {
+        background: #ef4444;
+        color: white;
+      }
+      .log-entry.WARNING {
+        border-left-color: #f59e0b;
+      }
+      .log-entry.WARNING .log-type {
+        background: #f59e0b;
+        color: white;
+      }
+      .log-entry.COMMAND {
+        border-left-color: #8b5cf6;
+      }
+      .log-entry.COMMAND .log-type {
+        background: #8b5cf6;
+        color: white;
+      }
+      .log-entry.YASKAWA {
+        border-left-color: #06b6d4;
+      }
+      .log-entry.YASKAWA .log-type {
+        background: #06b6d4;
+        color: white;
+      }
+      .log-entry.DECODE {
+        border-left-color: #f97316;
+      }
+      .log-entry.DECODE .log-type {
+        background: #f97316;
+        color: white;
+      }
+      .log-entry.DEBUG {
+        border-left-color: #64748b;
+      }
+      .log-entry.DEBUG .log-type {
+        background: #64748b;
+        color: white;
+      }
+      .log-entry.RAW {
+        border-left-color: #ec4899;
+      }
+      .log-entry.RAW .log-type {
+        background: #ec4899;
+        color: white;
+      }
+      .log-entry.RECV {
+        border-left-color: #06b6d4;
+        background: rgba(6, 182, 212, 0.1);
+      }
+      .log-entry.RECV .log-type {
+        background: #06b6d4;
+        color: white;
+      }
+      .log-entry.SEND {
+        border-left-color: #f59e0b;
+        background: rgba(245, 158, 11, 0.1);
+      }
+      .log-entry.SEND .log-type {
+        background: #f59e0b;
+        color: white;
+      }
+      .log-entry.QUEUE {
+        border-left-color: #a855f7;
+      }
+      .log-entry.QUEUE .log-type {
+        background: #a855f7;
+        color: white;
+      }
+      .log-entry.TX {
+        border-left-color: #22c55e;
+        background: rgba(34, 197, 94, 0.1);
+      }
+      .log-entry.TX .log-type {
+        background: #22c55e;
+        color: white;
+      }
+      .log-entry.TRANSLATE {
+        border-left-color: #14b8a6;
+        background: rgba(20, 184, 166, 0.15);
+      }
+      .log-entry.TRANSLATE .log-type {
+        background: #14b8a6;
+        color: white;
+      }
 
-        .stat-label {
-            color: #6b7280;
-            font-size: 10px;
-        }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 10px;
+      }
 
-        .test-section {
-            margin-bottom: 12px;
-            padding: 10px;
-            background: #f9fafb;
-            border-radius: 6px;
-        }
+      .stat-card {
+        background: #f3f4f6;
+        padding: 8px;
+        border-radius: 6px;
+        text-align: center;
+      }
 
-        .test-section h3 {
-            font-size: 12px;
-            margin-bottom: 8px;
-            color: #374151;
-        }
+      .stat-value {
+        font-size: 20px;
+        font-weight: bold;
+        color: #667eea;
+      }
 
-        .test-response {
-            background: #1e293b;
-            border-radius: 4px;
-            padding: 8px;
-            color: #e2e8f0;
-            font-family: 'Courier New', monospace;
-            font-size: 10px;
-            min-height: 40px;
-        }
+      .stat-label {
+        color: #6b7280;
+        font-size: 10px;
+      }
 
-        .warning-banner {
-            background: #fef3c7;
-            color: #92400e;
-            padding: 6px;
-            border-radius: 4px;
-            margin-bottom: 10px;
-            font-size: 11px;
-            text-align: center;
-        }
+      .test-section {
+        margin-bottom: 12px;
+        padding: 10px;
+        background: #f9fafb;
+        border-radius: 6px;
+      }
 
-        .compact-input {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px;
-        }
+      .test-section h3 {
+        font-size: 12px;
+        margin-bottom: 8px;
+        color: #374151;
+      }
 
-        .quick-btn {
-            padding: 8px 6px;
-            font-size: 11px;
-            margin-bottom: 4px;
-        }
+      .test-response {
+        background: #1e293b;
+        border-radius: 4px;
+        padding: 8px;
+        color: #e2e8f0;
+        font-family: "Courier New", monospace;
+        font-size: 10px;
+        min-height: 40px;
+      }
+
+      .warning-banner {
+        background: #fef3c7;
+        color: #92400e;
+        padding: 6px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        font-size: 11px;
+        text-align: center;
+      }
+
+      .info-banner {
+        background: #dbeafe;
+        color: #1e40af;
+        padding: 6px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        font-size: 11px;
+        text-align: center;
+      }
+
+      .listen-banner {
+        background: #fef3c7;
+        color: #92400e;
+        padding: 8px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        font-size: 11px;
+        text-align: center;
+      }
+
+      .compact-input {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+
+      .quick-btn {
+        padding: 8px 6px;
+        font-size: 11px;
+        margin-bottom: 4px;
+      }
+
+      /* Decoded Panel */
+      .decoded-panel {
+        background: #0f172a;
+        border-radius: 6px;
+        padding: 10px;
+        height: calc(100% - 40px);
+        overflow-y: auto;
+      }
+
+      .decoded-entry {
+        background: #1e293b;
+        border-radius: 6px;
+        padding: 10px;
+        margin-bottom: 8px;
+        border-left: 3px solid #06b6d4;
+      }
+
+      .decoded-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 6px;
+      }
+
+      .decoded-operation {
+        font-weight: bold;
+        color: #06b6d4;
+        font-size: 11px;
+      }
+
+      .decoded-timestamp {
+        color: #64748b;
+        font-size: 10px;
+      }
+
+      .decoded-register {
+        font-size: 14px;
+        font-weight: bold;
+        color: #f8fafc;
+        margin-bottom: 4px;
+      }
+
+      .decoded-description {
+        color: #94a3b8;
+        font-size: 11px;
+        margin-bottom: 6px;
+      }
+
+      .decoded-values {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+
+      .decoded-value {
+        background: #0f172a;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-family: "Courier New", monospace;
+        font-size: 10px;
+      }
+
+      .decoded-value label {
+        color: #64748b;
+        font-size: 9px;
+        margin-bottom: 2px;
+      }
+
+      .decoded-value span {
+        color: #10b981;
+        font-weight: bold;
+      }
+
+      .decoded-interpretation {
+        background: #10b981;
+        color: white;
+        padding: 6px 10px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      .decoded-bits {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #374151;
+      }
+
+      .decoded-bits-title {
+        color: #94a3b8;
+        font-size: 10px;
+        margin-bottom: 4px;
+      }
+
+      .bit-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+
+      .bit-item {
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 9px;
+        font-family: "Courier New", monospace;
+      }
+
+      .bit-item.on {
+        background: #10b981;
+        color: white;
+      }
+
+      .bit-item.off {
+        background: #374151;
+        color: #64748b;
+      }
+
+      /* Mode descriptions */
+      .mode-description {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 10px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+        font-size: 11px;
+      }
+
+      .mode-description h3 {
+        font-size: 13px;
+        margin-bottom: 4px;
+      }
+
+      /* Register Reference */
+      .register-ref {
+        font-size: 10px;
+        background: #f3f4f6;
+        padding: 8px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+      }
+
+      .register-ref table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .register-ref th,
+      .register-ref td {
+        padding: 3px 6px;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .register-ref th {
+        background: #e5e7eb;
+        font-weight: 600;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <header>
-            <h1>🔌 WEG Drive Gateway - Test Mode</h1>
-            <div class="status-indicator">
-                <div class="status-dot" id="statusDot"></div>
-                <span id="statusText">Stopped</span>
-            </div>
-        </header>
-
-        <div class="main-grid">
-            <!-- Left Column: Config & Control -->
-            <div class="card">
-                <h2>⚙️ Configuration</h2>
-                <form id="configForm">
-                    <div class="form-group">
-                        <label>Controller Port:</label>
-                        <input type="text" id="portControlador" value="COM3">
-                    </div>
-
-                    <div class="form-group">
-                        <label>WEG Port:</label>
-                        <input type="text" id="portWeg" value="COM4">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Baud Rate:</label>
-                        <select id="baudRate">
-                            <option value="9600">9600</option>
-                            <option value="19200">19200</option>
-                            <option value="38400">38400</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Parity (P0313):</label>
-                        <select id="parity">
-                            <option value="N">None</option>
-                            <option value="E">Even</option>
-                            <option value="O">Odd</option>
-                        </select>
-                    </div>
-
-                    <div class="compact-input">
-                        <div class="form-group" style="margin-bottom: 8px;">
-                            <label>Stop Bits:</label>
-                            <select id="stopbits">
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-bottom: 8px;">
-                            <label>Data Bits:</label>
-                            <select id="bytesize">
-                                <option value="7">7</option>
-                                <option value="8">8</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Slave ID (P0315):</label>
-                        <input type="number" id="slaveId" value="6" min="1" max="247">
-                    </div>
-
-                    <button type="submit" class="btn-primary" style="width: 100%; margin-bottom: 8px;">💾 Save</button>
-                </form>
-
-                <div class="button-group">
-                    <button id="startBtn" class="btn-success">▶️ Start</button>
-                    <button id="stopBtn" class="btn-danger" disabled>⏹️ Stop</button>
-                </div>
-
-                <div class="stats">
-                    <div class="stat-card">
-                        <div class="stat-value" id="messageCount">0</div>
-                        <div class="stat-label">Messages</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="commandCount">0</div>
-                        <div class="stat-label">Commands</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="errorCount">0</div>
-                        <div class="stat-label">Errors</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Middle Column: Logs -->
-            <div class="card">
-                <h2>📊 Activity Log</h2>
-                <div style="display: flex; gap: 6px; margin-bottom: 8px;">
-                    <button id="clearBtn" class="btn-secondary" style="flex: 1;">🗑️ Clear</button>
-                    <button id="scrollBtn" class="btn-secondary" style="flex: 1;">📜 Auto: ON</button>
-                </div>
-                <div class="log-container" id="logContainer">
-                    <div class="log-entry INFO">
-                        <span class="log-timestamp">Ready</span>
-                        <span class="log-type">INFO</span>
-                        <span class="log-message">System ready. Start server and use test mode.</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right Column: Test Mode -->
-            <div class="card">
-                <h2>🧪 Test Mode</h2>
-                <div class="warning-banner">⚠️ Direct WEG Control</div>
-
-                <!-- Quick Commands -->
-                <div class="test-section">
-                    <h3>Motor Control</h3>
-                    <div class="button-group">
-                        <button onclick="testCommand(682, 1)" class="btn-success quick-btn">▶️ Start</button>
-                        <button onclick="testCommand(682, 0)" class="btn-danger quick-btn">⏹️ Stop</button>
-                    </div>
-                </div>
-
-                <div class="test-section">
-                    <h3>Frequency Presets</h3>
-                    <div class="button-group">
-                        <button onclick="testCommand(683, 2048)" class="btn-primary quick-btn">15Hz</button>
-                        <button onclick="testCommand(683, 4096)" class="btn-primary quick-btn">30Hz</button>
-                        <button onclick="testCommand(683, 6144)" class="btn-primary quick-btn">45Hz</button>
-                    </div>
-                </div>
-
-                <div class="test-section">
-                    <h3>Direction</h3>
-                    <div class="button-group">
-                        <button onclick="testCommand(685, 0)" class="btn-secondary quick-btn">→ Fwd</button>
-                        <button onclick="testCommand(685, 1)" class="btn-secondary quick-btn">← Rev</button>
-                    </div>
-                </div>
-
-                <div class="test-section">
-                    <h3>Read Status</h3>
-                    <div class="button-group">
-                        <button onclick="testRead(681)" class="btn-secondary quick-btn" style="font-size: 10px;">Speed</button>
-                        <button onclick="testRead(682)" class="btn-secondary quick-btn" style="font-size: 10px;">Control</button>
-                        <button onclick="testRead(683)" class="btn-secondary quick-btn" style="font-size: 10px;">Ref</button>
-                    </div>
-                </div>
-
-                <!-- Frequency Calculator -->
-                <div class="test-section">
-                    <h3>🧮 Frequency Calculator</h3>
-                    <div class="compact-input" style="margin-bottom: 6px;">
-                        <div>
-                            <label>Hz:</label>
-                            <input type="number" id="calcHz" value="30.0" step="0.1" min="0" max="60">
-                        </div>
-                        <div>
-                            <label>WEG:</label>
-                            <input type="text" id="wegValue" readonly style="background: #f3f4f6;">
-                        </div>
-                    </div>
-                    <button onclick="sendCalculated()" class="btn-success" style="width: 100%;">Send Frequency</button>
-                </div>
-
-                <!-- Custom Command -->
-                <div class="test-section">
-                    <h3>Custom Command</h3>
-                    <div class="compact-input" style="margin-bottom: 6px;">
-                        <div>
-                            <label>Register:</label>
-                            <input type="number" id="testRegister" value="683" min="0" max="9999">
-                        </div>
-                        <div>
-                            <label>Value:</label>
-                            <input type="number" id="testValue" value="4096" min="0" max="65535">
-                        </div>
-                    </div>
-                    <div class="button-group">
-                        <button onclick="testCustomCommand()" class="btn-primary">📤 Write</button>
-                        <button onclick="testCustomRead()" class="btn-secondary">📥 Read</button>
-                    </div>
-                </div>
-
-                <!-- Response -->
-                <div class="test-response" id="testResponse">
-                    Ready...
-                </div>
-            </div>
+      <header>
+        <h1>VFD Link - Yaskawa to WEG Gateway</h1>
+        <div class="header-right">
+          <div class="status-indicator">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Stopped</span>
+          </div>
+          <div class="status-indicator">
+            <span>Mode: <strong id="currentModeText">REDIRECT</strong></span>
+          </div>
         </div>
+      </header>
+
+      <!-- Mode Tabs -->
+      <div class="mode-tabs">
+        <button
+          class="mode-tab redirect active"
+          onclick="switchMode('redirect')"
+        >
+          REDIRECT MODE - Yaskawa to WEG Translation
+        </button>
+        <button class="mode-tab listen" onclick="switchMode('listen')">
+          LISTEN MODE - Yaskawa Command Decoder
+        </button>
+        <button class="mode-tab command" onclick="switchMode('command')">
+          COMMAND MODE - Direct WEG Testing
+        </button>
+      </div>
+
+      <!-- REDIRECT MODE -->
+      <div class="mode-content active" id="mode-redirect">
+        <div class="main-grid">
+          <!-- Left Column: Config & Control -->
+          <div class="card">
+            <h2 class="green">Configuration</h2>
+            <div class="mode-description">
+              <h3>Redirect Mode</h3>
+              <p>
+                Translates Yaskawa commands to WEG CFW11 format and forwards
+                them.
+              </p>
+            </div>
+
+            <form id="configForm">
+              <!-- Bus Mode Selection -->
+              <div class="form-group">
+                <label>Bus Mode:</label>
+                <select id="singleBusMode">
+                  <option value="true">
+                    Single Bus (same port for HMI & VFD)
+                  </option>
+                  <option value="false">Dual Port (separate ports)</option>
+                </select>
+              </div>
+
+              <div class="compact-input">
+                <div class="form-group">
+                  <label>HMI/Controller Port:</label>
+                  <input type="text" id="portControlador" value="COM4" />
+                </div>
+                <div class="form-group">
+                  <label>WEG VFD Port:</label>
+                  <input type="text" id="portWeg" value="COM4" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Baud Rate:</label>
+                <select id="baudRate">
+                  <option value="1200">1200</option>
+                  <option value="2400">2400</option>
+                  <option value="4800">4800</option>
+                  <option value="9600">9600</option>
+                  <option value="19200">19200</option>
+                  <option value="38400" selected>38400</option>
+                  <option value="57600">57600</option>
+                  <option value="115200">115200</option>
+                </select>
+              </div>
+
+              <div class="compact-input">
+                <div class="form-group">
+                  <label>Parity:</label>
+                  <select id="parity">
+                    <option value="N" selected>None</option>
+                    <option value="E">Even</option>
+                    <option value="O">Odd</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Stop Bits:</label>
+                  <select id="stopbits">
+                    <option value="1">1</option>
+                    <option value="2" selected>2</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="compact-input">
+                <div class="form-group">
+                  <label>Data Bits:</label>
+                  <select id="bytesize">
+                    <option value="7">7</option>
+                    <option value="8" selected>8</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Max Freq (x0.01Hz):</label>
+                  <input
+                    type="number"
+                    id="maxFreq"
+                    value="6000"
+                    min="100"
+                    max="40000"
+                  />
+                </div>
+              </div>
+
+              <!-- Slave IDs -->
+              <div
+                style="
+                  background: #f0f9ff;
+                  padding: 8px;
+                  border-radius: 4px;
+                  margin: 8px 0;
+                "
+              >
+                <label style="font-weight: bold; color: #0369a1"
+                  >Slave Addresses</label
+                >
+                <p style="font-size: 10px; color: #0369a1; margin: 4px 0">
+                  Emulator = Yaskawa A1000 (for HMI). Target drive = WEG CFW-11.
+                </p>
+                <div class="compact-input" style="margin-top: 6px">
+                  <div class="form-group" style="margin-bottom: 0">
+                    <label>Yaskawa Emulator ID:</label>
+                    <input
+                      type="number"
+                      id="yaskawaSlaveId"
+                      value="6"
+                      min="1"
+                      max="247"
+                    />
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0">
+                    <label>WEG VFD ID:</label>
+                    <input
+                      type="number"
+                      id="slaveId"
+                      value="5"
+                      min="1"
+                      max="247"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Debug Options -->
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="respondToAnyId" />
+                  Respond to ANY slave ID (debug mode)
+                </label>
+              </div>
+
+              <!-- WEG Heartbeat Settings -->
+              <div
+                style="
+                  background: #fef3c7;
+                  padding: 8px;
+                  border-radius: 4px;
+                  margin: 8px 0;
+                  border: 1px solid #f59e0b;
+                "
+              >
+                <label style="font-weight: bold; color: #92400e"
+                  >WEG Settings</label
+                >
+                <p style="font-size: 10px; color: #92400e; margin: 4px 0">
+                  Heartbeat must be LESS than WEG P0314 watchdog setting!
+                </p>
+                <div class="compact-input" style="margin-top: 6px">
+                  <div class="form-group" style="margin-bottom: 0">
+                    <label>Heartbeat (sec):</label>
+                    <select id="heartbeatInterval">
+                      <option value="0.25">0.25s</option>
+                      <option value="0.5" selected>0.5s</option>
+                      <option value="1.0">1.0s</option>
+                      <option value="2.0">2.0s</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0">
+                    <label>WEG Max (Hz):</label>
+                    <input
+                      type="number"
+                      id="wegMaxFreqHz"
+                      value="60"
+                      min="1"
+                      max="400"
+                      step="1"
+                      style="width: 70px"
+                    />
+                  </div>
+                </div>
+                <p style="font-size: 9px; color: #78350f; margin: 4px 0 0 0">
+                  WEG motor max freq (8192 scale). Usually 60Hz for standard
+                  motors.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                class="btn-primary"
+                style="width: 100%; margin-bottom: 8px"
+              >
+                Save Configuration
+              </button>
+            </form>
+
+            <div class="button-group">
+              <button id="startBtn" class="btn-success">Start Server</button>
+              <button id="stopBtn" class="btn-danger" disabled>
+                Stop Server
+              </button>
+            </div>
+
+            <div class="stats">
+              <div class="stat-card">
+                <div class="stat-value" id="messageCount">0</div>
+                <div class="stat-label">Messages</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value" id="commandCount">0</div>
+                <div class="stat-label">Commands</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value" id="errorCount">0</div>
+                <div class="stat-label">Errors</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Middle Column: Logs -->
+          <div class="card">
+            <h2>Activity Log</h2>
+            <div style="display: flex; gap: 6px; margin-bottom: 8px">
+              <button id="clearBtn" class="btn-secondary" style="flex: 1">
+                Clear Log
+              </button>
+              <button id="scrollBtn" class="btn-secondary" style="flex: 1">
+                Auto-scroll: ON
+              </button>
+            </div>
+            <div class="log-container" id="logContainer"></div>
+          </div>
+
+          <!-- Right Column: Quick Reference -->
+          <div class="card">
+            <h2 class="green">Translation Reference</h2>
+            <div class="info-banner">Yaskawa -> WEG Register Mapping</div>
+
+            <div class="register-ref">
+              <table>
+                <tr>
+                  <th>Yaskawa Reg</th>
+                  <th>WEG Reg</th>
+                  <th>Function</th>
+                </tr>
+                <tr>
+                  <td>0x0001</td>
+                  <td>P0682</td>
+                  <td>Run/Stop Command</td>
+                </tr>
+                <tr>
+                  <td>0x0002</td>
+                  <td>P0683</td>
+                  <td>Frequency Reference</td>
+                </tr>
+              </table>
+            </div>
+
+            <div class="test-section">
+              <h3>Value Conversion</h3>
+              <p style="font-size: 11px; color: #666; margin-bottom: 8px">
+                Yaskawa Freq: 0-6000 (0-60.00Hz)<br />
+                WEG Speed Ref: 0-8192 (0-100%)
+              </p>
+              <div class="compact-input">
+                <div>
+                  <label>Yaskawa Value:</label>
+                  <input type="number" id="convYaskawa" value="3000" step="1" />
+                </div>
+                <div>
+                  <label>WEG Value:</label>
+                  <input
+                    type="text"
+                    id="convWeg"
+                    readonly
+                    style="background: #f3f4f6"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="test-section">
+              <h3>Frequency Calculator</h3>
+              <div class="compact-input">
+                <div>
+                  <label>Hz:</label>
+                  <input
+                    type="number"
+                    id="calcHzRedirect"
+                    value="30.0"
+                    step="0.1"
+                  />
+                </div>
+                <div>
+                  <label>Yaskawa:</label>
+                  <input
+                    type="text"
+                    id="calcYaskawa"
+                    readonly
+                    style="background: #f3f4f6"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LISTEN MODE -->
+      <div class="mode-content" id="mode-listen">
+        <div class="main-grid-listen">
+          <!-- Left Column: Config -->
+          <div class="card">
+            <h2 class="orange">Listen Configuration</h2>
+            <div
+              class="mode-description"
+              style="
+                background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+              "
+            >
+              <h3>Listen Mode</h3>
+              <p>
+                Captures and decodes Yaskawa commands without forwarding. Use to
+                debug your controller.
+              </p>
+            </div>
+
+            <div class="listen-banner">
+              No commands forwarded to WEG in this mode
+            </div>
+
+            <div class="form-group">
+              <label>Controller Port (Listen):</label>
+              <input type="text" id="portControladorListen" value="COM4" />
+            </div>
+
+            <div class="form-group">
+              <label>Baud Rate:</label>
+              <select id="baudRateListen">
+                <option value="1200">1200</option>
+                <option value="2400">2400</option>
+                <option value="4800">4800</option>
+                <option value="9600">9600</option>
+                <option value="19200">19200</option>
+                <option value="38400" selected>38400</option>
+                <option value="57600">57600</option>
+                <option value="115200">115200</option>
+              </select>
+            </div>
+
+            <div class="compact-input">
+              <div class="form-group">
+                <label>Parity:</label>
+                <select id="parityListen">
+                  <option value="N" selected>None</option>
+                  <option value="E">Even</option>
+                  <option value="O">Odd</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Data Bits:</label>
+                <select id="bytesizeListen">
+                  <option value="7">7</option>
+                  <option value="8" selected>8</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Stop Bits:</label>
+              <select id="stopbitsListen">
+                <option value="1">1</option>
+                <option value="2" selected>2</option>
+              </select>
+            </div>
+
+            <button
+              onclick="saveListenConfig()"
+              class="btn-warning"
+              style="width: 100%; margin-bottom: 8px"
+            >
+              Save Config
+            </button>
+
+            <div class="button-group">
+              <button id="startListenBtn" class="btn-warning">
+                Start Modbus
+              </button>
+              <button id="stopListenBtn" class="btn-danger" disabled>
+                Stop
+              </button>
+            </div>
+
+            <div class="test-section" style="margin-top: 10px">
+              <h3>Raw Serial Monitor</h3>
+              <p style="font-size: 10px; color: #666; margin-bottom: 6px">
+                Debug tool: See raw bytes without Modbus parsing
+              </p>
+              <div class="button-group">
+                <button id="startRawBtn" class="btn-secondary">
+                  Start Raw
+                </button>
+                <button id="stopRawBtn" class="btn-danger" disabled>
+                  Stop Raw
+                </button>
+              </div>
+            </div>
+
+            <div class="test-section" style="margin-top: 10px">
+              <h3>Yaskawa Register Reference</h3>
+              <div style="font-size: 10px; max-height: 200px; overflow-y: auto">
+                <table style="width: 100%">
+                  <tr>
+                    <th>Addr</th>
+                    <th>Name</th>
+                  </tr>
+                  <tr>
+                    <td>0x0000</td>
+                    <td>Status Word</td>
+                  </tr>
+                  <tr>
+                    <td>0x0001</td>
+                    <td>Command Word</td>
+                  </tr>
+                  <tr>
+                    <td>0x0002</td>
+                    <td>Freq Reference</td>
+                  </tr>
+                  <tr>
+                    <td>0x0003</td>
+                    <td>Output Freq</td>
+                  </tr>
+                  <tr>
+                    <td>0x0004</td>
+                    <td>Output Current</td>
+                  </tr>
+                  <tr>
+                    <td>0x0005</td>
+                    <td>Output Voltage</td>
+                  </tr>
+                  <tr>
+                    <td>0x0009</td>
+                    <td>Motor Speed</td>
+                  </tr>
+                  <tr>
+                    <td>0x000D</td>
+                    <td>Fault Code</td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Middle Column: Raw Log -->
+          <div class="card">
+            <h2 class="orange">Raw Communication Log</h2>
+            <div style="display: flex; gap: 6px; margin-bottom: 8px">
+              <button
+                onclick="clearMessages()"
+                class="btn-secondary"
+                style="flex: 1"
+              >
+                Clear
+              </button>
+              <button
+                id="scrollBtnListen"
+                class="btn-secondary"
+                style="flex: 1"
+                onclick="toggleAutoScroll()"
+              >
+                Auto-scroll: ON
+              </button>
+            </div>
+            <div class="log-container" id="logContainerListen"></div>
+          </div>
+
+          <!-- Right Column: Decoded Panel -->
+          <div class="card">
+            <h2 class="orange">Decoded Yaskawa Commands</h2>
+            <button
+              onclick="clearDecoded()"
+              class="btn-secondary"
+              style="width: 100%; margin-bottom: 8px"
+            >
+              Clear Decoded
+            </button>
+            <div class="decoded-panel" id="decodedPanel">
+              <div style="color: #64748b; text-align: center; padding: 20px">
+                Waiting for Yaskawa commands...<br />
+                <small>Start listening to capture and decode commands</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMMAND MODE -->
+      <div class="mode-content" id="mode-command">
+        <div class="main-grid">
+          <!-- Left Column: Config -->
+          <div class="card">
+            <h2 class="purple">WEG Connection</h2>
+            <div
+              class="mode-description"
+              style="
+                background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+              "
+            >
+              <h3>Command Mode</h3>
+              <p>
+                Direct control of WEG drive for testing. No translation, no
+                forwarding.
+              </p>
+            </div>
+
+            <div class="warning-banner">Direct WEG Control - Use Caution!</div>
+
+            <div class="form-group">
+              <label>WEG Port:</label>
+              <input type="text" id="portWegCommand" value="COM4" />
+            </div>
+
+            <div class="form-group">
+              <label>Baud Rate:</label>
+              <select id="baudRateCommand">
+                <option value="1200">1200</option>
+                <option value="2400">2400</option>
+                <option value="4800">4800</option>
+                <option value="9600">9600</option>
+                <option value="19200">19200</option>
+                <option value="38400" selected>38400</option>
+                <option value="57600">57600</option>
+                <option value="115200">115200</option>
+              </select>
+            </div>
+
+            <div class="compact-input">
+              <div class="form-group">
+                <label>Parity:</label>
+                <select id="parityCommand">
+                  <option value="N" selected>None</option>
+                  <option value="E">Even</option>
+                  <option value="O">Odd</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Slave ID:</label>
+                <input
+                  type="number"
+                  id="slaveIdCommand"
+                  value="5"
+                  min="1"
+                  max="247"
+                />
+              </div>
+            </div>
+
+            <div class="compact-input">
+              <div class="form-group">
+                <label>Stop Bits:</label>
+                <select id="stopbitsCommand">
+                  <option value="1">1</option>
+                  <option value="2" selected>2</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Data Bits:</label>
+                <select id="bytesizeCommand">
+                  <option value="7">7</option>
+                  <option value="8" selected>8</option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              onclick="saveCommandConfig()"
+              class="btn-purple"
+              style="width: 100%; margin-bottom: 8px"
+            >
+              Save Config
+            </button>
+
+            <div class="button-group">
+              <button id="connectWegBtn" class="btn-purple">Connect</button>
+              <button id="reconnectWegBtn" class="btn-warning">
+                Reconnect
+              </button>
+              <button id="disconnectWegBtn" class="btn-danger" disabled>
+                Stop
+              </button>
+            </div>
+
+            <div class="stats" style="margin-top: 10px">
+              <div class="stat-card">
+                <div class="stat-value" id="writeCount">0</div>
+                <div class="stat-label">Writes</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value" id="readCount">0</div>
+                <div class="stat-label">Reads</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value" id="cmdErrorCount">0</div>
+                <div class="stat-label">Errors</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Middle Column: Logs -->
+          <div class="card">
+            <h2 class="purple">Command Log</h2>
+            <div style="display: flex; gap: 6px; margin-bottom: 8px">
+              <button
+                onclick="clearMessages()"
+                class="btn-secondary"
+                style="flex: 1"
+              >
+                Clear
+              </button>
+            </div>
+            <div class="log-container" id="logContainerCommand"></div>
+          </div>
+
+          <!-- Right Column: Test Commands -->
+          <div class="card">
+            <h2 class="purple">WEG Test Commands</h2>
+
+            <!-- Quick Commands -->
+            <!-- WEG CFW-11 P0682 Control Word:
+                 Bit 0: Start/Stop (0=stop, 1=run)
+                 Bit 1: General Enable (0=disable, 1=enable)
+                 Bit 2: Direction (0=REV, 1=FWD)
+                 Bit 4: LOC/REM (0=local, 1=remote) - MUST be 1!
+                 
+                 0x0017 = 0b00010111 = RUN + Enable + FWD + Remote
+                 0x0013 = 0b00010011 = RUN + Enable + REV + Remote
+                 0x0010 = 0b00010000 = STOP + Remote (keeps remote mode)
+            -->
+            <div class="test-section">
+              <h3>Motor Control (P0682)</h3>
+              <div class="button-group">
+                <button
+                  onclick="testCommand(682, 0x0017)"
+                  class="btn-success quick-btn"
+                  title="0x0017: Run + Enable + FWD + Remote"
+                >
+                  RUN FWD
+                </button>
+                <button
+                  onclick="testCommand(682, 0x0013)"
+                  class="btn-success quick-btn"
+                  title="0x0013: Run + Enable + REV + Remote"
+                >
+                  RUN REV
+                </button>
+                <button
+                  onclick="testCommand(682, 0x0010)"
+                  class="btn-danger quick-btn"
+                  title="0x0010: Stop + Remote"
+                >
+                  STOP
+                </button>
+                <button
+                  onclick="testCommand(682, 0x0090)"
+                  class="btn-warning quick-btn"
+                  title="0x0090: Fault Reset + Remote"
+                >
+                  RESET
+                </button>
+              </div>
+            </div>
+
+            <div class="test-section">
+              <h3>Speed Reference (P0683)</h3>
+              <p style="font-size: 11px; color: #888; margin: 2px 0 8px 0">
+                13-bit scale: 8192 = sync speed (60Hz)
+              </p>
+              <div class="button-group">
+                <button
+                  onclick="testCommand(683, 2048)"
+                  class="btn-purple quick-btn"
+                >
+                  15Hz
+                </button>
+                <button
+                  onclick="testCommand(683, 4096)"
+                  class="btn-purple quick-btn"
+                >
+                  30Hz
+                </button>
+                <button
+                  onclick="testCommand(683, 6144)"
+                  class="btn-purple quick-btn"
+                >
+                  45Hz
+                </button>
+                <button
+                  onclick="testCommand(683, 8192)"
+                  class="btn-purple quick-btn"
+                >
+                  60Hz
+                </button>
+              </div>
+            </div>
+
+            <div class="test-section">
+              <h3>Combined Commands</h3>
+              <div class="button-group">
+                <button
+                  onclick="testCommand(682, 0x0017); setTimeout(() => testCommand(683, 4096), 100)"
+                  class="btn-success quick-btn"
+                >
+                  RUN 30Hz
+                </button>
+                <button
+                  onclick="testCommand(682, 0x0017); setTimeout(() => testCommand(683, 8192), 100)"
+                  class="btn-success quick-btn"
+                >
+                  RUN 60Hz
+                </button>
+              </div>
+            </div>
+
+            <div class="test-section">
+              <h3>Read Status</h3>
+              <div class="compact-input" style="margin-bottom: 6px">
+                <div class="form-group">
+                  <label>Function Code:</label>
+                  <select id="readFuncCode">
+                    <option value="3">FC03 - Holding Registers</option>
+                    <option value="4">FC04 - Input Registers</option>
+                  </select>
+                </div>
+              </div>
+              <div class="button-group">
+                <button
+                  onclick="testReadFC(2)"
+                  class="btn-secondary quick-btn"
+                  title="Motor Speed"
+                >
+                  P0002
+                </button>
+                <button
+                  onclick="testReadFC(3)"
+                  class="btn-secondary quick-btn"
+                  title="Motor Current"
+                >
+                  P0003
+                </button>
+                <button
+                  onclick="testReadFC(680)"
+                  class="btn-secondary quick-btn"
+                  title="Logic Status"
+                >
+                  P0680
+                </button>
+                <button
+                  onclick="testReadFC(681)"
+                  class="btn-secondary quick-btn"
+                  title="Motor Speed 13-bit"
+                >
+                  P0681
+                </button>
+              </div>
+              <p style="font-size: 11px; color: #888; margin: 8px 0 4px 0">
+                Serial Config:
+              </p>
+              <div class="button-group">
+                <button
+                  onclick="testReadFC(308)"
+                  class="btn-warning quick-btn"
+                  title="Serial Address"
+                >
+                  P0308
+                </button>
+                <button
+                  onclick="testReadFC(310)"
+                  class="btn-warning quick-btn"
+                  title="Baud Rate"
+                >
+                  P0310
+                </button>
+                <button
+                  onclick="testReadFC(314)"
+                  class="btn-warning quick-btn"
+                  title="Watchdog"
+                >
+                  P0314
+                </button>
+              </div>
+              <p
+                style="
+                  font-size: 11px;
+                  color: #dc2626;
+                  margin: 8px 0 4px 0;
+                  font-weight: bold;
+                "
+              >
+                SPEED SOURCE (must be 9 for serial!):
+              </p>
+              <div class="button-group">
+                <button
+                  onclick="testReadFC(222)"
+                  class="btn-danger quick-btn"
+                  title="Speed Ref REMOTE - MUST BE 9!"
+                >
+                  P0222
+                </button>
+                <button
+                  onclick="testReadFC(227)"
+                  class="btn-danger quick-btn"
+                  title="Run/Stop REMOTE"
+                >
+                  P0227
+                </button>
+                <button
+                  onclick="testReadFC(683)"
+                  class="btn-danger quick-btn"
+                  title="Current Speed Ref Value"
+                >
+                  P0683
+                </button>
+              </div>
+              <p style="font-size: 10px; color: #dc2626; margin: 4px 0">
+                If P0222 ≠ 9, drive ignores P0683! Set P0222=9 on drive.
+              </p>
+            </div>
+
+            <!-- Frequency Calculator -->
+            <div class="test-section">
+              <h3>Frequency Calculator</h3>
+              <div class="compact-input" style="margin-bottom: 6px">
+                <div>
+                  <label>Hz:</label>
+                  <input
+                    type="number"
+                    id="calcHz"
+                    value="30.0"
+                    step="0.1"
+                    min="0"
+                    max="60"
+                  />
+                </div>
+                <div>
+                  <label>WEG Value:</label>
+                  <input
+                    type="text"
+                    id="wegValue"
+                    readonly
+                    style="background: #f3f4f6"
+                  />
+                </div>
+              </div>
+              <button
+                onclick="sendCalculated()"
+                class="btn-success"
+                style="width: 100%"
+              >
+                Send Frequency
+              </button>
+            </div>
+
+            <!-- Custom Command -->
+            <div class="test-section">
+              <h3>Custom Command</h3>
+              <div class="compact-input" style="margin-bottom: 6px">
+                <div>
+                  <label>Register:</label>
+                  <input
+                    type="number"
+                    id="testRegister"
+                    value="683"
+                    min="0"
+                    max="9999"
+                  />
+                </div>
+                <div>
+                  <label>Value:</label>
+                  <input
+                    type="number"
+                    id="testValue"
+                    value="4096"
+                    min="0"
+                    max="65535"
+                  />
+                </div>
+              </div>
+              <div class="button-group">
+                <button onclick="testCustomCommand()" class="btn-purple">
+                  Write
+                </button>
+                <button onclick="testCustomRead()" class="btn-secondary">
+                  Read
+                </button>
+              </div>
+            </div>
+
+            <!-- Response -->
+            <div class="test-response" id="testResponse">
+              Ready for commands...
+            </div>
+
+            <!-- Speed Source Setup - CRITICAL -->
+            <div
+              class="test-section"
+              style="background: #fee2e2; border: 2px solid #dc2626"
+            >
+              <h3 style="color: #dc2626">Speed Source Setup (REQUIRED!)</h3>
+              <p style="font-size: 11px; margin: 4px 0">
+                If motor only runs at 1-2 RPM, P0222 is probably not set to
+                Serial!
+              </p>
+              <table style="font-size: 11px; width: 100%; margin-top: 8px">
+                <tr style="background: #fecaca">
+                  <th style="padding: 4px; text-align: left">Parameter</th>
+                  <th style="padding: 4px; text-align: left">Description</th>
+                  <th style="padding: 4px; text-align: left">Required Value</th>
+                </tr>
+                <tr>
+                  <td style="padding: 4px"><strong>P0222</strong></td>
+                  <td style="padding: 4px">Speed Ref (REMOTE)</td>
+                  <td style="padding: 4px"><strong>9 = Serial/USB</strong></td>
+                </tr>
+                <tr style="background: #fef2f2">
+                  <td style="padding: 4px"><strong>P0227</strong></td>
+                  <td style="padding: 4px">Run/Stop (REMOTE)</td>
+                  <td style="padding: 4px"><strong>2 = Serial/USB</strong></td>
+                </tr>
+              </table>
+              <p style="font-size: 10px; margin: 8px 0 4px 0; color: #991b1b">
+                <strong
+                  >Write these on the drive directly, or use Custom Command
+                  above:</strong
+                ><br />
+                Register 222, Value 9 (for P0222=9)<br />
+                Register 227, Value 2 (for P0227=2)
+              </p>
+            </div>
+
+            <!-- A128 Troubleshooting Reference -->
+            <div
+              class="test-section"
+              style="background: #fef3c7; border: 1px solid #f59e0b"
+            >
+              <h3 style="color: #92400e">A128 Timeout Reference</h3>
+              <table style="font-size: 10px; width: 100%; margin-top: 4px">
+                <tr style="background: #fde68a">
+                  <th style="padding: 3px; text-align: left">Param</th>
+                  <th style="padding: 3px; text-align: left">Description</th>
+                  <th style="padding: 3px; text-align: left">Values</th>
+                </tr>
+                <tr>
+                  <td style="padding: 3px">P0314</td>
+                  <td style="padding: 3px">Serial Watchdog</td>
+                  <td style="padding: 3px">0.0=off, else timeout sec</td>
+                </tr>
+                <tr style="background: #fef9c3">
+                  <td style="padding: 3px">P0313</td>
+                  <td style="padding: 3px">Action on Error</td>
+                  <td style="padding: 3px">0=none, 1=stop, 5=fault</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script>
-        const socket = io();
-        let autoScroll = true;
-        let stats = { total: 0, commands: 0, errors: 0 };
+      const socket = io();
+      let autoScroll = true;
+      let stats = { total: 0, commands: 0, errors: 0, writes: 0, reads: 0 };
+      let currentMode = "redirect";
 
-        // Load configuration
-        async function loadConfig() {
-            try {
-                const response = await fetch('/api/config');
-                const data = await response.json();
-                if (data.success) {
-                    document.getElementById('portControlador').value = data.config.PORT_CONTROLADOR;
-                    document.getElementById('portWeg').value = data.config.PORT_WEG;
-                    document.getElementById('baudRate').value = data.config.BAUD_RATE;
-                    document.getElementById('parity').value = data.config.PARITY || 'N';
-                    document.getElementById('stopbits').value = data.config.STOPBITS || 1;
-                    document.getElementById('bytesize').value = data.config.BYTESIZE || 8;
-                    document.getElementById('slaveId').value = data.config.SLAVE_ID;
-                    updateServerStatus(data.server_running);
-                }
-            } catch (error) {
-                console.error('Failed to load configuration:', error);
-            }
+      // Mode switching
+      async function switchMode(mode) {
+        try {
+          const response = await fetch("/api/mode", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode }),
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            currentMode = mode;
+
+            // Update tabs
+            document
+              .querySelectorAll(".mode-tab")
+              .forEach((tab) => tab.classList.remove("active"));
+            document.querySelector(`.mode-tab.${mode}`).classList.add("active");
+
+            // Update content
+            document
+              .querySelectorAll(".mode-content")
+              .forEach((content) => content.classList.remove("active"));
+            document.getElementById(`mode-${mode}`).classList.add("active");
+
+            // Update header
+            document.getElementById("currentModeText").textContent =
+              mode.toUpperCase();
+
+            showNotification(
+              `Mode changed to ${mode.toUpperCase()}`,
+              "success"
+            );
+          } else {
+            showNotification(data.message, "error");
+          }
+        } catch (error) {
+          showNotification("Failed to switch mode", "error");
         }
+      }
 
-        // Save configuration
-        document.getElementById('configForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const config = {
-                PORT_CONTROLADOR: document.getElementById('portControlador').value,
-                PORT_WEG: document.getElementById('portWeg').value,
-                BAUD_RATE: parseInt(document.getElementById('baudRate').value),
-                PARITY: document.getElementById('parity').value,
-                STOPBITS: parseInt(document.getElementById('stopbits').value),
-                BYTESIZE: parseInt(document.getElementById('bytesize').value),
-                SLAVE_ID: parseInt(document.getElementById('slaveId').value)
-            };
+      // Load configuration
+      async function loadConfig() {
+        try {
+          const response = await fetch("/api/config");
+          const data = await response.json();
+          if (data.success) {
+            // Redirect mode - all config options
+            document.getElementById("portControlador").value =
+              data.config.PORT_CONTROLADOR;
+            document.getElementById("portWeg").value = data.config.PORT_WEG;
+            document.getElementById("baudRate").value = data.config.BAUD_RATE;
+            document.getElementById("parity").value = data.config.PARITY || "N";
+            document.getElementById("stopbits").value =
+              data.config.STOPBITS || 2;
+            document.getElementById("bytesize").value =
+              data.config.BYTESIZE || 8;
+            document.getElementById("slaveId").value = data.config.SLAVE_ID;
+            document.getElementById("yaskawaSlaveId").value =
+              data.config.YASKAWA_SLAVE_ID || 6;
+            document.getElementById("maxFreq").value =
+              data.config.MAX_FREQ || 6000;
+            document.getElementById("singleBusMode").value = data.config
+              .SINGLE_BUS_MODE
+              ? "true"
+              : "false";
+            document.getElementById("respondToAnyId").checked =
+              data.config.RESPOND_TO_ANY_ID || false;
+            document.getElementById("heartbeatInterval").value =
+              data.config.HEARTBEAT_INTERVAL || 0.5;
+            document.getElementById("wegMaxFreqHz").value =
+              data.config.WEG_MAX_FREQ_HZ || 60;
 
-            try {
-                const response = await fetch('/api/config', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(config)
-                });
-                const data = await response.json();
-                showNotification(data.message, data.success ? 'success' : 'error');
-            } catch (error) {
-                showNotification('Failed to save', 'error');
-            }
-        });
+            // Listen mode
+            document.getElementById("portControladorListen").value =
+              data.config.PORT_CONTROLADOR;
+            document.getElementById("baudRateListen").value =
+              data.config.BAUD_RATE;
+            document.getElementById("parityListen").value =
+              data.config.PARITY || "N";
+            document.getElementById("bytesizeListen").value =
+              data.config.BYTESIZE || 8;
+            document.getElementById("stopbitsListen").value =
+              data.config.STOPBITS || 2;
 
-        // Start server
-        document.getElementById('startBtn').addEventListener('click', async () => {
-            try {
-                const response = await fetch('/api/server/start', { method: 'POST' });
-                const data = await response.json();
-                showNotification(data.message, data.success ? 'success' : 'error');
-                if (data.success) updateServerStatus(true);
-            } catch (error) {
-                showNotification('Failed to start', 'error');
-            }
-        });
+            // Command mode
+            document.getElementById("portWegCommand").value =
+              data.config.PORT_WEG;
+            document.getElementById("baudRateCommand").value =
+              data.config.BAUD_RATE;
+            document.getElementById("parityCommand").value =
+              data.config.PARITY || "N";
+            document.getElementById("stopbitsCommand").value =
+              data.config.STOPBITS || 2;
+            document.getElementById("bytesizeCommand").value =
+              data.config.BYTESIZE || 8;
+            document.getElementById("slaveIdCommand").value =
+              data.config.SLAVE_ID;
 
-        // Stop server
-        document.getElementById('stopBtn').addEventListener('click', async () => {
-            try {
-                const response = await fetch('/api/server/stop', { method: 'POST' });
-                const data = await response.json();
-                showNotification(data.message, data.success ? 'success' : 'error');
-                if (data.success) updateServerStatus(false);
-            } catch (error) {
-                showNotification('Failed to stop', 'error');
-            }
-        });
+            updateServerStatus(data.server_running);
+          }
 
-        // Clear messages
-        document.getElementById('clearBtn').addEventListener('click', async () => {
-            try {
-                await fetch('/api/messages/clear', { method: 'POST' });
-                document.getElementById('logContainer').innerHTML = '';
-                stats = { total: 0, commands: 0, errors: 0 };
-                updateStats();
-            } catch (error) {
-                console.error('Failed to clear:', error);
-            }
-        });
+          // Get current mode
+          const modeResponse = await fetch("/api/mode");
+          const modeData = await modeResponse.json();
+          if (modeData.success) {
+            currentMode = modeData.mode;
+            document.getElementById("currentModeText").textContent =
+              currentMode.toUpperCase();
 
-        // Toggle auto-scroll
-        document.getElementById('scrollBtn').addEventListener('click', () => {
-            autoScroll = !autoScroll;
-            document.getElementById('scrollBtn').textContent = `📜 Auto: ${autoScroll ? 'ON' : 'OFF'}`;
-        });
+            // Update tabs
+            document
+              .querySelectorAll(".mode-tab")
+              .forEach((tab) => tab.classList.remove("active"));
+            document
+              .querySelector(`.mode-tab.${currentMode}`)
+              .classList.add("active");
 
-        // Load initial messages
-        async function loadMessages() {
-            try {
-                const response = await fetch('/api/messages');
-                const data = await response.json();
-                if (data.success) {
-                    data.messages.forEach(msg => addLogEntry(msg));
-                }
-            } catch (error) {
-                console.error('Failed to load messages:', error);
-            }
+            // Update content
+            document
+              .querySelectorAll(".mode-content")
+              .forEach((content) => content.classList.remove("active"));
+            document
+              .getElementById(`mode-${currentMode}`)
+              .classList.add("active");
+          }
+        } catch (error) {
+          console.error("Failed to load configuration:", error);
         }
+      }
 
-        // Socket handlers
-        socket.on('connect', () => console.log('Connected'));
-        socket.on('new_messages', (data) => {
-            data.messages.forEach(msg => addLogEntry(msg));
+      // Save configuration (redirect mode)
+      document
+        .getElementById("configForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const config = {
+            PORT_CONTROLADOR: document.getElementById("portControlador").value,
+            PORT_WEG: document.getElementById("portWeg").value,
+            BAUD_RATE: parseInt(document.getElementById("baudRate").value),
+            PARITY: document.getElementById("parity").value,
+            STOPBITS: parseInt(document.getElementById("stopbits").value),
+            BYTESIZE: parseInt(document.getElementById("bytesize").value),
+            SLAVE_ID: parseInt(document.getElementById("slaveId").value),
+            YASKAWA_SLAVE_ID: parseInt(
+              document.getElementById("yaskawaSlaveId").value
+            ),
+            MAX_FREQ: parseInt(document.getElementById("maxFreq").value),
+            SINGLE_BUS_MODE:
+              document.getElementById("singleBusMode").value === "true",
+            RESPOND_TO_ANY_ID:
+              document.getElementById("respondToAnyId").checked,
+            HEARTBEAT_INTERVAL: parseFloat(
+              document.getElementById("heartbeatInterval").value
+            ),
+            WEG_MAX_FREQ_HZ: parseFloat(
+              document.getElementById("wegMaxFreqHz").value
+            ),
+          };
+
+          try {
+            const response = await fetch("/api/config", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(config),
+            });
+            const data = await response.json();
+            showNotification(data.message, data.success ? "success" : "error");
+          } catch (error) {
+            showNotification("Failed to save", "error");
+          }
         });
 
-        // Add log entry
-        function addLogEntry(msg) {
-            const logContainer = document.getElementById('logContainer');
-            const entry = document.createElement('div');
+      // Save listen config
+      async function saveListenConfig() {
+        const config = {
+          PORT_CONTROLADOR: document.getElementById("portControladorListen")
+            .value,
+          BAUD_RATE: parseInt(document.getElementById("baudRateListen").value),
+          PARITY: document.getElementById("parityListen").value,
+          BYTESIZE: parseInt(document.getElementById("bytesizeListen").value),
+          STOPBITS: parseInt(document.getElementById("stopbitsListen").value),
+        };
+
+        try {
+          const response = await fetch("/api/config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(config),
+          });
+          const data = await response.json();
+          showNotification(data.message, data.success ? "success" : "error");
+        } catch (error) {
+          showNotification("Failed to save", "error");
+        }
+      }
+
+      // Save command config
+      async function saveCommandConfig() {
+        const config = {
+          PORT_WEG: document.getElementById("portWegCommand").value,
+          BAUD_RATE: parseInt(document.getElementById("baudRateCommand").value),
+          PARITY: document.getElementById("parityCommand").value,
+          STOPBITS: parseInt(document.getElementById("stopbitsCommand").value),
+          BYTESIZE: parseInt(document.getElementById("bytesizeCommand").value),
+          SLAVE_ID: parseInt(document.getElementById("slaveIdCommand").value),
+        };
+
+        try {
+          const response = await fetch("/api/config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(config),
+          });
+          const data = await response.json();
+          showNotification(data.message, data.success ? "success" : "error");
+        } catch (error) {
+          showNotification("Failed to save", "error");
+        }
+      }
+
+      // Start server
+      document
+        .getElementById("startBtn")
+        .addEventListener("click", startServer);
+      document
+        .getElementById("startListenBtn")
+        .addEventListener("click", startServer);
+      document
+        .getElementById("connectWegBtn")
+        .addEventListener("click", startServer);
+      document
+        .getElementById("reconnectWegBtn")
+        .addEventListener("click", reconnectWeg);
+
+      async function startServer() {
+        try {
+          const response = await fetch("/api/server/start", { method: "POST" });
+          const data = await response.json();
+          showNotification(data.message, data.success ? "success" : "error");
+          if (data.success) updateServerStatus(true);
+        } catch (error) {
+          showNotification("Failed to start", "error");
+        }
+      }
+
+      // Stop server
+      document.getElementById("stopBtn").addEventListener("click", stopServer);
+      document
+        .getElementById("stopListenBtn")
+        .addEventListener("click", stopServer);
+      document
+        .getElementById("disconnectWegBtn")
+        .addEventListener("click", stopServer);
+
+      async function stopServer() {
+        try {
+          const response = await fetch("/api/server/stop", { method: "POST" });
+          const data = await response.json();
+          showNotification(data.message, data.success ? "success" : "error");
+          if (data.success) updateServerStatus(false);
+        } catch (error) {
+          showNotification("Failed to stop", "error");
+        }
+      }
+
+      // Clear messages
+      document
+        .getElementById("clearBtn")
+        .addEventListener("click", clearMessages);
+
+      async function clearMessages() {
+        try {
+          await fetch("/api/messages/clear", { method: "POST" });
+          document.getElementById("logContainer").innerHTML = "";
+          document.getElementById("logContainerListen").innerHTML = "";
+          document.getElementById("logContainerCommand").innerHTML = "";
+          stats = { total: 0, commands: 0, errors: 0, writes: 0, reads: 0 };
+          updateStats();
+        } catch (error) {
+          console.error("Failed to clear:", error);
+        }
+      }
+
+      // Clear decoded
+      async function clearDecoded() {
+        try {
+          await fetch("/api/decoded/clear", { method: "POST" });
+          document.getElementById("decodedPanel").innerHTML = `
+                    <div style="color: #64748b; text-align: center; padding: 20px;">
+                        Waiting for Yaskawa commands...<br>
+                        <small>Start listening to capture and decode commands</small>
+                    </div>
+                `;
+        } catch (error) {
+          console.error("Failed to clear decoded:", error);
+        }
+      }
+
+      // Toggle auto-scroll
+      document
+        .getElementById("scrollBtn")
+        .addEventListener("click", toggleAutoScroll);
+
+      function toggleAutoScroll() {
+        autoScroll = !autoScroll;
+        document.getElementById("scrollBtn").textContent = `Auto-scroll: ${
+          autoScroll ? "ON" : "OFF"
+        }`;
+        document.getElementById(
+          "scrollBtnListen"
+        ).textContent = `Auto-scroll: ${autoScroll ? "ON" : "OFF"}`;
+      }
+
+      // Load initial messages
+      async function loadMessages() {
+        try {
+          const response = await fetch("/api/messages");
+          const data = await response.json();
+          if (data.success) {
+            data.messages.forEach((msg) => addLogEntry(msg));
+          }
+        } catch (error) {
+          console.error("Failed to load messages:", error);
+        }
+      }
+
+      // Load decoded messages
+      async function loadDecoded() {
+        try {
+          const response = await fetch("/api/decoded");
+          const data = await response.json();
+          if (data.success && data.decoded.length > 0) {
+            const panel = document.getElementById("decodedPanel");
+            panel.innerHTML = "";
+            data.decoded.forEach((decoded) => addDecodedEntry(decoded));
+          }
+        } catch (error) {
+          console.error("Failed to load decoded:", error);
+        }
+      }
+
+      // Socket handlers
+      socket.on("connect", () => console.log("Connected"));
+      socket.on("new_messages", (data) => {
+        data.messages.forEach((msg) => addLogEntry(msg));
+      });
+
+      // Add log entry
+      function addLogEntry(msg) {
+        // Add to all log containers
+        ["logContainer", "logContainerListen", "logContainerCommand"].forEach(
+          (containerId) => {
+            const logContainer = document.getElementById(containerId);
+            if (!logContainer) return;
+
+            const entry = document.createElement("div");
             entry.className = `log-entry ${msg.type}`;
             entry.innerHTML = `
-                <span class="log-timestamp">${msg.timestamp}</span>
-                <span class="log-type">${msg.type}</span>
-                <span class="log-message">${msg.message}</span>
-            `;
+                    <span class="log-timestamp">${msg.timestamp}</span>
+                    <span class="log-type">${msg.type}</span>
+                    <span class="log-message">${msg.message}</span>
+                `;
             logContainer.appendChild(entry);
 
-            stats.total++;
-            if (msg.type === 'COMMAND') stats.commands++;
-            if (msg.type === 'ERROR') stats.errors++;
-            updateStats();
-
             if (autoScroll) {
-                logContainer.scrollTop = logContainer.scrollHeight;
+              logContainer.scrollTop = logContainer.scrollHeight;
             }
+          }
+        );
+
+        stats.total++;
+        if (msg.type === "COMMAND" || msg.type === "YASKAWA") stats.commands++;
+        if (msg.type === "ERROR") stats.errors++;
+        if (msg.type === "SUCCESS" && msg.message.includes("Written"))
+          stats.writes++;
+        if (msg.type === "INFO" && msg.message.includes("read")) stats.reads++;
+        updateStats();
+
+        // If it's a YASKAWA decoded message, also add to decoded panel
+        if (msg.type === "YASKAWA") {
+          loadDecoded();
+        }
+      }
+
+      // Add decoded entry
+      function addDecodedEntry(decoded) {
+        const panel = document.getElementById("decodedPanel");
+
+        // Remove placeholder if exists
+        const placeholder = panel.querySelector(
+          'div[style*="text-align: center"]'
+        );
+        if (placeholder) placeholder.remove();
+
+        const entry = document.createElement("div");
+        entry.className = "decoded-entry";
+
+        let bitsHtml = "";
+        if (decoded.decoded_bits && decoded.decoded_bits.length > 0) {
+          const activeBits = decoded.decoded_bits.filter(
+            (b) => b.state === "ON"
+          );
+          if (activeBits.length > 0) {
+            bitsHtml = `
+                        <div class="decoded-bits">
+                            <div class="decoded-bits-title">Active Bits:</div>
+                            <div class="bit-list">
+                                ${activeBits
+                                  .map(
+                                    (b) =>
+                                      `<span class="bit-item on">Bit${b.bit}: ${b.description}</span>`
+                                  )
+                                  .join("")}
+                            </div>
+                        </div>
+                    `;
+          }
         }
 
-        // Update stats
-        function updateStats() {
-            document.getElementById('messageCount').textContent = stats.total;
-            document.getElementById('commandCount').textContent = stats.commands;
-            document.getElementById('errorCount').textContent = stats.errors;
+        entry.innerHTML = `
+                <div class="decoded-header">
+                    <span class="decoded-operation">${decoded.operation}</span>
+                    <span class="decoded-timestamp">${
+                      decoded.timestamp || ""
+                    }</span>
+                </div>
+                <div class="decoded-register">${decoded.register_hex} - ${
+          decoded.register_name
+        }</div>
+                <div class="decoded-description">${decoded.description}</div>
+                <div class="decoded-values">
+                    <div class="decoded-value">
+                        <label>Decimal</label>
+                        <span>${decoded.value}</span>
+                    </div>
+                    <div class="decoded-value">
+                        <label>Hex</label>
+                        <span>${decoded.value_hex}</span>
+                    </div>
+                    <div class="decoded-value">
+                        <label>Binary</label>
+                        <span style="font-size: 8px;">${
+                          decoded.value_binary
+                        }</span>
+                    </div>
+                </div>
+                ${
+                  decoded.calculated_value
+                    ? `<div class="decoded-interpretation">${decoded.calculated_value}</div>`
+                    : ""
+                }
+                ${bitsHtml}
+            `;
+
+        panel.insertBefore(entry, panel.firstChild);
+
+        // Keep only last 20 entries
+        while (panel.children.length > 20) {
+          panel.removeChild(panel.lastChild);
         }
+      }
 
-        // Update server status
-        function updateServerStatus(running) {
-            const statusDot = document.getElementById('statusDot');
-            const statusText = document.getElementById('statusText');
-            const startBtn = document.getElementById('startBtn');
-            const stopBtn = document.getElementById('stopBtn');
+      // Update stats
+      function updateStats() {
+        document.getElementById("messageCount").textContent = stats.total;
+        document.getElementById("commandCount").textContent = stats.commands;
+        document.getElementById("errorCount").textContent = stats.errors;
+        document.getElementById("writeCount").textContent = stats.writes;
+        document.getElementById("readCount").textContent = stats.reads;
+        document.getElementById("cmdErrorCount").textContent = stats.errors;
+      }
 
-            if (running) {
-                statusDot.classList.add('running');
-                statusText.textContent = 'Running';
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-            } else {
-                statusDot.classList.remove('running');
-                statusText.textContent = 'Stopped';
-                startBtn.disabled = false;
-                stopBtn.disabled = true;
-            }
+      // Update server status
+      function updateServerStatus(running) {
+        const statusDot = document.getElementById("statusDot");
+        const statusText = document.getElementById("statusText");
+
+        if (running) {
+          statusDot.classList.add("running");
+          statusText.textContent = "Running";
+
+          document.getElementById("startBtn").disabled = true;
+          document.getElementById("stopBtn").disabled = false;
+          document.getElementById("startListenBtn").disabled = true;
+          document.getElementById("stopListenBtn").disabled = false;
+          document.getElementById("connectWegBtn").disabled = true;
+          document.getElementById("disconnectWegBtn").disabled = false;
+        } else {
+          statusDot.classList.remove("running");
+          statusText.textContent = "Stopped";
+
+          document.getElementById("startBtn").disabled = false;
+          document.getElementById("stopBtn").disabled = true;
+          document.getElementById("startListenBtn").disabled = false;
+          document.getElementById("stopListenBtn").disabled = true;
+          document.getElementById("connectWegBtn").disabled = false;
+          document.getElementById("disconnectWegBtn").disabled = true;
         }
+      }
 
-        // Show notification
-        function showNotification(message, type) {
-            const notification = document.createElement('div');
-            notification.style.cssText = `
+      // Show notification
+      function showNotification(message, type) {
+        const notification = document.createElement("div");
+        notification.style.cssText = `
                 position: fixed;
                 top: 20px;
                 right: 20px;
@@ -627,124 +2169,239 @@
                 font-size: 13px;
                 box-shadow: 0 4px 6px rgba(0,0,0,0.2);
                 z-index: 1000;
-                background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+                background: ${
+                  type === "success"
+                    ? "#10b981"
+                    : type === "error"
+                    ? "#ef4444"
+                    : "#3b82f6"
+                };
             `;
-            notification.textContent = message;
-            document.body.appendChild(notification);
+        notification.textContent = message;
+        document.body.appendChild(notification);
 
-            setTimeout(() => notification.remove(), 3000);
+        setTimeout(() => notification.remove(), 3000);
+      }
+
+      // Test Mode Functions
+      async function testCommand(register, value) {
+        try {
+          const response = await fetch("/api/test/write", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ register, value }),
+          });
+
+          const data = await response.json();
+
+          document.getElementById("testResponse").innerHTML =
+            `<span style="color: ${data.success ? "#10b981" : "#ef4444"};">` +
+            `[${new Date().toLocaleTimeString()}] ${data.message}</span>`;
+
+          showNotification(data.message, data.success ? "success" : "error");
+          if (data.success) stats.writes++;
+          else stats.errors++;
+          updateStats();
+        } catch (error) {
+          document.getElementById(
+            "testResponse"
+          ).innerHTML = `<span style="color: #ef4444;">[${new Date().toLocaleTimeString()}] Error: ${error}</span>`;
+        }
+      }
+
+      async function testRead(register, funcCode = 3) {
+        try {
+          const response = await fetch("/api/test/read", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ register, func_code: funcCode }),
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            document.getElementById("testResponse").innerHTML =
+              `<span style="color: #10b981;">` +
+              `[${new Date().toLocaleTimeString()}] P${register
+                .toString()
+                .padStart(4, "0")} = ${data.value} (FC${funcCode})</span>`;
+            stats.reads++;
+          } else {
+            document.getElementById("testResponse").innerHTML =
+              `<span style="color: #ef4444;">` +
+              `[${new Date().toLocaleTimeString()}] ${data.message}</span>`;
+            stats.errors++;
+          }
+
+          updateStats();
+          showNotification(data.message, data.success ? "success" : "error");
+        } catch (error) {
+          document.getElementById(
+            "testResponse"
+          ).innerHTML = `<span style="color: #ef4444;">[${new Date().toLocaleTimeString()}] Error: ${error}</span>`;
+        }
+      }
+
+      function testReadFC(register) {
+        const funcCode = parseInt(
+          document.getElementById("readFuncCode").value
+        );
+        testRead(register, funcCode);
+      }
+
+      async function reconnectWeg() {
+        try {
+          const response = await fetch("/api/reconnect", { method: "POST" });
+          const data = await response.json();
+          showNotification(data.message, data.success ? "success" : "error");
+        } catch (error) {
+          showNotification("Reconnect failed: " + error, "error");
+        }
+      }
+
+      async function startRawMonitor() {
+        try {
+          const response = await fetch("/api/raw_monitor/start", {
+            method: "POST",
+          });
+          const data = await response.json();
+          showNotification(data.message, data.success ? "success" : "error");
+          if (data.success) {
+            document.getElementById("startRawBtn").disabled = true;
+            document.getElementById("stopRawBtn").disabled = false;
+          }
+        } catch (error) {
+          showNotification("Failed to start raw monitor: " + error, "error");
+        }
+      }
+
+      async function stopRawMonitor() {
+        try {
+          const response = await fetch("/api/raw_monitor/stop", {
+            method: "POST",
+          });
+          const data = await response.json();
+          showNotification(data.message, data.success ? "success" : "error");
+          document.getElementById("startRawBtn").disabled = false;
+          document.getElementById("stopRawBtn").disabled = true;
+        } catch (error) {
+          showNotification("Failed to stop raw monitor: " + error, "error");
+        }
+      }
+
+      // Add event listeners for raw monitor
+      document
+        .getElementById("startRawBtn")
+        .addEventListener("click", startRawMonitor);
+      document
+        .getElementById("stopRawBtn")
+        .addEventListener("click", stopRawMonitor);
+
+      function testCustomCommand() {
+        const register = parseInt(
+          document.getElementById("testRegister").value
+        );
+        const value = parseInt(document.getElementById("testValue").value);
+
+        if (isNaN(register) || isNaN(value)) {
+          showNotification("Invalid input", "error");
+          return;
         }
 
-        // Test Mode Functions
-        async function testCommand(register, value) {
-            try {
-                const response = await fetch('/api/test/write', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ register, value })
-                });
-                
-                const data = await response.json();
-                
-                document.getElementById('testResponse').innerHTML = 
-                    `<span style="color: ${data.success ? '#10b981' : '#ef4444'};">` +
-                    `[${new Date().toLocaleTimeString()}] ${data.message}</span>`;
-                
-                showNotification(data.message, data.success ? 'success' : 'error');
-            } catch (error) {
-                document.getElementById('testResponse').innerHTML = 
-                    `<span style="color: #ef4444;">[${new Date().toLocaleTimeString()}] Error: ${error}</span>`;
-            }
+        testCommand(register, value);
+      }
+
+      function testCustomRead() {
+        const register = parseInt(
+          document.getElementById("testRegister").value
+        );
+
+        if (isNaN(register)) {
+          showNotification("Invalid register", "error");
+          return;
         }
 
-        async function testRead(register) {
-            try {
-                const response = await fetch('/api/test/read', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ register })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    document.getElementById('testResponse').innerHTML = 
-                        `<span style="color: #10b981;">` +
-                        `[${new Date().toLocaleTimeString()}] P${register.toString().padStart(4, '0')} = ${data.value}</span>`;
-                } else {
-                    document.getElementById('testResponse').innerHTML = 
-                        `<span style="color: #ef4444;">` +
-                        `[${new Date().toLocaleTimeString()}] ${data.message}</span>`;
-                }
-                
-                showNotification(data.message, data.success ? 'success' : 'error');
-            } catch (error) {
-                document.getElementById('testResponse').innerHTML = 
-                    `<span style="color: #ef4444;">[${new Date().toLocaleTimeString()}] Error: ${error}</span>`;
-            }
+        const funcCode = parseInt(
+          document.getElementById("readFuncCode").value
+        );
+        testRead(register, funcCode);
+      }
+
+      function sendCalculated() {
+        const hz = parseFloat(document.getElementById("calcHz").value);
+
+        if (isNaN(hz) || hz < 0 || hz > 60) {
+          showNotification("Hz must be 0-60", "error");
+          return;
         }
 
-        function testCustomCommand() {
-            const register = parseInt(document.getElementById('testRegister').value);
-            const value = parseInt(document.getElementById('testValue').value);
-            
-            if (isNaN(register) || isNaN(value)) {
-                showNotification('Invalid input', 'error');
-                return;
-            }
-            
-            testCommand(register, value);
-        }
+        const wegValue = Math.round(((hz * 100) / 6000) * 8192);
+        testCommand(683, wegValue);
+      }
 
-        function testCustomRead() {
-            const register = parseInt(document.getElementById('testRegister').value);
-            
-            if (isNaN(register)) {
-                showNotification('Invalid register', 'error');
-                return;
-            }
-            
-            testRead(register);
+      // Update WEG value when Hz changes
+      document.getElementById("calcHz").addEventListener("input", function () {
+        const hz = parseFloat(this.value);
+        if (!isNaN(hz)) {
+          const wegValue = Math.round(((hz * 100) / 6000) * 8192);
+          document.getElementById("wegValue").value = wegValue;
         }
+      });
 
-        function sendCalculated() {
-            const hz = parseFloat(document.getElementById('calcHz').value);
-            
-            if (isNaN(hz) || hz < 0 || hz > 60) {
-                showNotification('Hz must be 0-60', 'error');
-                return;
-            }
-            
-            const wegValue = Math.round((hz * 100 / 6000) * 8192);
-            testCommand(683, wegValue);
-        }
-
-        // Update WEG value when Hz changes
-        document.getElementById('calcHz').addEventListener('input', function() {
-            const hz = parseFloat(this.value);
-            if (!isNaN(hz)) {
-                const wegValue = Math.round((hz * 100 / 6000) * 8192);
-                document.getElementById('wegValue').value = wegValue;
-            }
+      // Conversion calculator (redirect mode)
+      document
+        .getElementById("convYaskawa")
+        .addEventListener("input", function () {
+          const yaskawa = parseInt(this.value);
+          if (!isNaN(yaskawa)) {
+            const wegValue = Math.round((yaskawa / 6000) * 8192);
+            document.getElementById("convWeg").value = wegValue;
+          }
         });
 
-        // Poll server status
-        setInterval(async () => {
-            try {
-                const response = await fetch('/api/status');
-                const data = await response.json();
-                if (data.success) {
-                    updateServerStatus(data.server_running);
-                }
-            } catch (error) {
-                console.error('Failed to get status:', error);
-            }
-        }, 2000);
+      document
+        .getElementById("calcHzRedirect")
+        .addEventListener("input", function () {
+          const hz = parseFloat(this.value);
+          if (!isNaN(hz)) {
+            const yaskawa = Math.round(hz * 100);
+            document.getElementById("calcYaskawa").value = yaskawa;
+          }
+        });
 
-        // Initialize
-        document.getElementById('calcHz').dispatchEvent(new Event('input'));
-        loadConfig();
-        loadMessages();
+      // Poll server status
+      setInterval(async () => {
+        try {
+          const response = await fetch("/api/status");
+          const data = await response.json();
+          if (data.success) {
+            updateServerStatus(data.server_running);
+            if (data.current_mode !== currentMode) {
+              currentMode = data.current_mode;
+              document.getElementById("currentModeText").textContent =
+                currentMode.toUpperCase();
+            }
+          }
+        } catch (error) {
+          console.error("Failed to get status:", error);
+        }
+      }, 2000);
+
+      // Poll decoded messages in listen mode
+      setInterval(async () => {
+        if (currentMode === "listen") {
+          loadDecoded();
+        }
+      }, 1000);
+
+      // Initialize
+      document.getElementById("calcHz").dispatchEvent(new Event("input"));
+      document.getElementById("convYaskawa").dispatchEvent(new Event("input"));
+      document
+        .getElementById("calcHzRedirect")
+        .dispatchEvent(new Event("input"));
+      loadConfig();
+      loadMessages();
     </script>
-</body>
+  </body>
 </html>

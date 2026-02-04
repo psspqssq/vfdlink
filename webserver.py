@@ -48,7 +48,7 @@ def update_config():
     try:
         data = request.json
         
-        # Update config
+        # Update config - Serial settings
         if 'PORT_CONTROLADOR' in data:
             vfdserver.config['PORT_CONTROLADOR'] = data['PORT_CONTROLADOR']
         if 'PORT_WEG' in data:
@@ -61,10 +61,26 @@ def update_config():
             vfdserver.config['STOPBITS'] = int(data['STOPBITS'])
         if 'BYTESIZE' in data:
             vfdserver.config['BYTESIZE'] = int(data['BYTESIZE'])
+        
+        # Slave IDs
         if 'SLAVE_ID' in data:
             vfdserver.config['SLAVE_ID'] = int(data['SLAVE_ID'])
+        if 'YASKAWA_SLAVE_ID' in data:
+            vfdserver.config['YASKAWA_SLAVE_ID'] = int(data['YASKAWA_SLAVE_ID'])
+        
+        # Frequency settings
         if 'MAX_FREQ' in data:
             vfdserver.config['MAX_FREQ'] = int(data['MAX_FREQ'])
+        
+        # Bus mode settings
+        if 'SINGLE_BUS_MODE' in data:
+            vfdserver.config['SINGLE_BUS_MODE'] = bool(data['SINGLE_BUS_MODE'])
+        if 'RESPOND_TO_ANY_ID' in data:
+            vfdserver.config['RESPOND_TO_ANY_ID'] = bool(data['RESPOND_TO_ANY_ID'])
+        if 'HEARTBEAT_INTERVAL' in data:
+            vfdserver.config['HEARTBEAT_INTERVAL'] = float(data['HEARTBEAT_INTERVAL'])
+        if 'WEG_MAX_FREQ_HZ' in data:
+            vfdserver.config['WEG_MAX_FREQ_HZ'] = float(data['WEG_MAX_FREQ_HZ'])
         
         vfdserver.add_message('INFO', 'Configuration updated')
         
@@ -146,7 +162,74 @@ def get_status():
     return jsonify({
         'success': True,
         'server_running': vfdserver.server_running,
-        'message_count': len(vfdserver.recent_messages)
+        'message_count': len(vfdserver.recent_messages),
+        'current_mode': vfdserver.get_mode()
+    })
+
+@app.route('/api/mode', methods=['GET'])
+def get_mode():
+    """Get current application mode"""
+    return jsonify({
+        'success': True,
+        'mode': vfdserver.get_mode()
+    })
+
+@app.route('/api/mode', methods=['POST'])
+def set_mode():
+    """Set application mode: redirect, listen, or command"""
+    try:
+        data = request.json
+        mode = data.get('mode', '').lower()
+        
+        if mode not in ['redirect', 'listen', 'command']:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid mode. Must be: redirect, listen, or command'
+            }), 400
+        
+        if vfdserver.set_mode(mode):
+            return jsonify({
+                'success': True,
+                'message': f'Mode set to {mode.upper()}',
+                'mode': mode
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to set mode'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/decoded', methods=['GET'])
+def get_decoded():
+    """Get decoded Yaskawa messages (for listen mode)"""
+    return jsonify({
+        'success': True,
+        'decoded': vfdserver.decoded_messages
+    })
+
+@app.route('/api/decoded/clear', methods=['POST'])
+def clear_decoded():
+    """Clear decoded messages"""
+    vfdserver.decoded_messages.clear()
+    return jsonify({
+        'success': True,
+        'message': 'Decoded messages cleared'
+    })
+
+@app.route('/api/yaskawa/registers', methods=['GET'])
+def get_yaskawa_registers():
+    """Get Yaskawa register definitions for reference"""
+    return jsonify({
+        'success': True,
+        'registers': {f'0x{k:04X}': v for k, v in vfdserver.YASKAWA_REGISTERS.items()},
+        'command_bits': vfdserver.YASKAWA_COMMAND_BITS,
+        'status_bits': vfdserver.YASKAWA_STATUS_BITS
     })
 
 @app.route('/api/test/write', methods=['POST'])
@@ -198,6 +281,7 @@ def test_read():
     try:
         data = request.json
         register = int(data.get('register'))
+        func_code = data.get('func_code', 3)  # 3=holding, 4=input registers
         
         # Use WEG client to read directly
         if not vfdserver.weg_client or not vfdserver.weg_client.connected:
@@ -208,25 +292,37 @@ def test_read():
                 }), 400
         
         with vfdserver.weg_lock:
-            result = vfdserver.weg_client.read_holding_registers(
-                register, 
-                1, 
-                slave=vfdserver.config['SLAVE_ID']
-            )
+            if func_code == 4:
+                # Read input registers (function code 04)
+                result = vfdserver.weg_client.read_input_registers(
+                    register, 
+                    1, 
+                    slave=vfdserver.config['SLAVE_ID']
+                )
+                reg_type = "Input"
+            else:
+                # Read holding registers (function code 03)
+                result = vfdserver.weg_client.read_holding_registers(
+                    register, 
+                    1, 
+                    slave=vfdserver.config['SLAVE_ID']
+                )
+                reg_type = "Holding"
             
             if result.isError():
-                vfdserver.add_message('ERROR', f'Test read failed: Register {register}')
+                vfdserver.add_message('ERROR', f'Test read failed: {reg_type} Register {register} - {result}')
                 return jsonify({
                     'success': False,
-                    'message': f'Modbus error: {result}'
+                    'message': f'Modbus error (FC{func_code}): {result}'
                 }), 400
             else:
                 value = result.registers[0]
-                vfdserver.add_message('INFO', f'Test read: P{register:04d} = {value}')
+                vfdserver.add_message('INFO', f'Test read: P{register:04d} = {value} ({reg_type} FC{func_code})')
                 return jsonify({
                     'success': True,
-                    'message': f'Read P{register:04d} = {value}',
-                    'value': value
+                    'message': f'Read P{register:04d} = {value} (FC{func_code})',
+                    'value': value,
+                    'func_code': func_code
                 })
                 
     except Exception as e:
@@ -235,6 +331,69 @@ def test_read():
             'success': False,
             'message': str(e)
         }), 500
+
+@app.route('/api/reconnect', methods=['POST'])
+def reconnect():
+    """Force reconnect to WEG with current settings"""
+    try:
+        if vfdserver.reconnect_weg_client():
+            return jsonify({
+                'success': True,
+                'message': 'Reconnected to WEG successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to reconnect'
+            }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/raw_monitor/start', methods=['POST'])
+def start_raw_monitor():
+    """Start raw serial monitor for debugging"""
+    try:
+        if vfdserver.start_raw_monitor():
+            return jsonify({
+                'success': True,
+                'message': 'Raw serial monitor started'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Monitor already running or failed to start'
+            }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/raw_monitor/stop', methods=['POST'])
+def stop_raw_monitor():
+    """Stop raw serial monitor"""
+    try:
+        vfdserver.stop_raw_monitor()
+        return jsonify({
+            'success': True,
+            'message': 'Raw serial monitor stopped'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/raw_monitor/status', methods=['GET'])
+def raw_monitor_status():
+    """Get raw monitor status"""
+    return jsonify({
+        'success': True,
+        'running': vfdserver.raw_monitor_running
+    })
 
 @socketio.on('connect')
 def handle_connect():
